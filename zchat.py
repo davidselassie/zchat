@@ -1,49 +1,40 @@
 import sys
 
-from server import block_collect_clients
-from client import ServerConnector
-
-
-def join_and_respond(msgs_in):
-    msg_out = '&'.join(msgs_in)
-    print('>', msg_out)
-    return msg_out
+import zmq
 
 
 def run_server():
-    print('starting server')
-    print('registation started')
-    clients = block_collect_clients()
-    print('registration over')
-    print(clients.client_count, 'clients connected')
-
+    ctx = zmq.Context()
+    rs = ctx.socket(zmq.ROUTER)
+    rs.get_monitor_socket()
+    rs.bind('tcp://*:5555')
     while True:
-        clients.recv_send(join_and_respond)
+        addr, _, msg = rs.recv_multipart()
+        msg = msg.decode('utf-8')
+        print('<', addr, msg)
+        msg = 'back at ya ' + repr(addr)
+        print('>', msg)
+        msg = msg.encode('utf-8')
+        rs.send_multipart((addr, b'', msg))
 
 
 def run_client():
-    print('starting client')
-    connector = ServerConnector('localhost')
-    print('registered')
-
-    cmd = 'wait'
-    while cmd == 'wait':
-        print(connector.get_client_count(), 'clients connected')
-        cmd = input('wait, join, or close? ')
-        if cmd == '':
-            cmd = 'wait'
-        if cmd == 'close':
-            connector.stop_register()
-    server = connector.connect()
-
+    ctx = zmq.Context()
+    rs = ctx.socket(zmq.REQ)
+    rs.connect('tcp://localhost:5555')
     while True:
-        msg_in = input('> ')
-        msg_out = server.send_recv(msg_in)
-        print('<', msg_out)
+        msg = 'hi'
+        print('<', msg)
+        rs.send_string(msg)
+        msg = rs.recv_string()
+        print('> ', msg)
 
 
 if __name__ == '__main__':
-    if sys.argv[1] == 'server':
+    cmd = sys.argv[1]
+    if cmd == 'server':
         run_server()
-    else:
+    elif cmd == 'client':
         run_client()
+    else:
+        raise ValueError('unknown command')
