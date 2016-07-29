@@ -1,33 +1,32 @@
 import sys
+import time
 
-import zmq
+from client import ServerConnector
+from server import ClientHandler
+
+
+def handle_message(in_msg):
+    print('>', in_msg)
+    print('<', in_msg)
+    return in_msg
 
 
 def run_server():
-    ctx = zmq.Context()
-    rs = ctx.socket(zmq.ROUTER)
-    rs.get_monitor_socket()
-    rs.bind('tcp://*:5555')
+    ch = ClientHandler()
     while True:
-        addr, _, msg = rs.recv_multipart()
-        msg = msg.decode('utf-8')
-        print('<', addr, msg)
-        msg = 'back at ya ' + repr(addr)
-        print('>', msg)
-        msg = msg.encode('utf-8')
-        rs.send_multipart((addr, b'', msg))
+        if ch.client_count > 0:
+            ch.recv_send(handle_message)
+        else:
+            time.sleep(0.5)
 
 
 def run_client():
-    ctx = zmq.Context()
-    rs = ctx.socket(zmq.REQ)
-    rs.connect('tcp://localhost:5555')
+    sc = ServerConnector('localhost')
     while True:
-        msg = 'hi'
-        print('<', msg)
-        rs.send_string(msg)
-        msg = rs.recv_string()
-        print('> ', msg)
+        out_msg = input('? ')
+        print('<', out_msg)
+        in_msg = sc.send_recv(out_msg)
+        print('>', in_msg)
 
 
 if __name__ == '__main__':
