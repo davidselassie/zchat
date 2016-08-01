@@ -7,15 +7,22 @@ from server import ClientHandler
 
 def handle_message(in_msg):
     print('>', in_msg)
-    print('<', in_msg)
-    return in_msg
+    out_msg = input('? ')
+    print('<', out_msg)
+    return out_msg
 
 
 def run_server():
     ch = ClientHandler()
+    found = ['init']
     while True:
         if ch.client_count > 0:
-            ch.recv_send(handle_message)
+            out_msg = '&'.join(found)
+            print('<', out_msg)
+            found = []
+            for in_msg in ch.send_recv(out_msg):
+                print('>', in_msg)
+                found.append(in_msg)
         else:
             time.sleep(0.5)
 
@@ -23,10 +30,7 @@ def run_server():
 def run_client():
     sc = ServerConnector('localhost')
     while True:
-        out_msg = input('? ')
-        print('<', out_msg)
-        in_msg = sc.send_recv(out_msg)
-        print('>', in_msg)
+        sc.recv_send(handle_message)
 
 
 if __name__ == '__main__':

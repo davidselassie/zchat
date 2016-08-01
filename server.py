@@ -6,10 +6,10 @@ from zmq.utils.monitor import recv_monitor_message
 
 class _ConnectionCountUpdater(Thread):
 
-    def __init__(self, client_handler):
+    def __init__(self, socket, client_handler):
         super().__init__(daemon=True)
 
-        self._monitor_socket = client_handler._socket.get_monitor_socket()
+        self._monitor_socket = socket.get_monitor_socket()
         self._client_hadler = client_handler
 
         self.start()
@@ -29,20 +29,15 @@ class ClientHandler:
         self.client_count = 0
 
         context = zmq.Context()
-        self._socket = context.socket(zmq.ROUTER)
-        self._monitor = _ConnectionCountUpdater(self)
+        self._socket = context.socket(zmq.DEALER)
+        self._count_updater = _ConnectionCountUpdater(self._socket, self)
         self._socket.bind('tcp://*:5555')
 
-    def recv_send(self, callback):
-        for _ in range(self.client_count):
-            addr, in_msg = self._recv()
-            out_msg = callback(in_msg)
-            self._send(addr, out_msg)
-
-    def _recv(self):
-        addr, _, msg_bytes = self._socket.recv_multipart()
-        msg = msg_bytes.decode('utf-8')
-        return addr, msg
-
-    def _send(self, addr, msg):
-        self._socket.send_multipart((addr, b'', msg.encode('utf-8')))
+    def send_recv(self, msg):
+        client_count = self.client_count
+        for _ in range(client_count):
+            self._socket.send_multipart((b'', msg.encode('utf-8')))
+        for _ in range(client_count):
+            empty_frame, msg_bytes = self._socket.recv_multipart()
+            if empty_frame == b'':
+                yield msg_bytes.decode('utf-8')
